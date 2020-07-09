@@ -18,7 +18,8 @@
   },
   "homepage": "https://github.com/Vizzuality/mangrove-atlas-data#readme",
   "dependencies": {
-    "@google-cloud/bigquery": "^5.0.0"
+    "@google-cloud/bigquery": "^5.0.0",
+    "axios": "^0.19.2"
   },
   "devDependencies": {
     "@google-cloud/functions-framework": "^1.6.0"

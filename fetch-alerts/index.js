@@ -1,14 +1,26 @@
 const { BigQuery } = require('@google-cloud/bigquery');
+const axios = require('axios').default;
 
 const bigquery = new BigQuery();
+
+const getLocation = async (locationId) => {
+  if (!locationId) return null;
+  console.log('Getting geometry from locations API');
+  const response = await axios.get(`https://mangrove-atlas-api-staging.herokuapp.com/api/locations/${locationId}`);
+  if (response && response.data) return response.data.data;
+  return null;
+};
 
 /**
  * Data aggregated by month
  */
-const aggregated = async () => {
+const aggregated = async (locationId) => {
+  const location = await getLocation(locationId);
+  const whereQuery = location ? `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${location.geometry}'), ST_GEOGPOINT(longitude, latitude))` : '';
   const query = `SELECT DATE_TRUNC(scr5_obs_date, MONTH) as date, count(scr5_obs_date) as count
   FROM deforestation_alerts.alerts_dev
   WHERE confident = 5
+    ${whereQuery}
   GROUP BY date`;
 
   const options = {
@@ -30,10 +42,12 @@ const aggregated = async () => {
 /**
  * Data aggregated by month, latitude and longitude
  */
-const layer = async () => {
+const layer = async (locationId) => {
+  const location = await getLocation(locationId);
+  const whereQuery = location ? `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${location.geometry}'), ST_GEOGPOINT(longitude, latitude))` : '';
   const query = `SELECT latitude, longitude, DATE_TRUNC(scr5_obs_date, MONTH) as date, count(scr5_obs_date) as count
   FROM deforestation_alerts.alerts_dev
-  WHERE confident = 5
+  WHERE confident = 5 ${whereQuery}
   GROUP BY latitude, longitude, date`;
 
   const options = {
@@ -68,11 +82,12 @@ const serializeToGeoJSON = (data) => ({
 exports.fetchAlerts = (req, res) => {
   // Get data and return a JSON
   async function fetch() {
+    const locationId = req.query.location_id;
     if (req.query.format === 'geojson') {
-      const result =  await layer();
+      const result =  await layer(locationId);
       res.json(serializeToGeoJSON(result));
     } else {
-      const result =  await aggregated();
+      const result =  await aggregated(locationId);
       res.json(result);
     }
   }
