@@ -19,8 +19,7 @@ const aggregated = async (locationId) => {
   const whereQuery = location ? `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${location.geometry}'), ST_GEOGPOINT(longitude, latitude))` : '';
   const query = `SELECT DATE_TRUNC(scr5_obs_date, MONTH) as date, count(scr5_obs_date) as count
   FROM deforestation_alerts.alerts_dev
-  WHERE confident = 5
-    ${whereQuery}
+  WHERE confident = 5 ${whereQuery}
   GROUP BY date`;
 
   const options = {
