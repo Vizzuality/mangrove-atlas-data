@@ -1,0 +1,9 @@
+version: '3'
+services:
+  analyse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npm start
+    volumes:
+      - './index.js:/home/index.js'
