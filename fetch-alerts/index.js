@@ -1,29 +1,61 @@
 const { BigQuery } = require('@google-cloud/bigquery');
 const axios = require('axios').default;
+const reverse = require('turf-reverse');
+const http = require('http');
+const https = require('https');
+
+const httpAgent = new http.Agent({keepAlive: true});
+const httpsAgent = new https.Agent({keepAlive: true});
 
 const bigquery = new BigQuery();
+
+const cache = {};
 
 const getLocation = async (locationId) => {
   if (!locationId) return null;
   console.log('Getting geometry from locations API');
-  const response = await axios.get(`https://mangrove-atlas-api-staging.herokuapp.com/api/locations/${locationId}`);
+  const response = await axios.get(`https://mangrove-atlas-api-staging.herokuapp.com/api/locations/${locationId}`, { httpAgent, httpsAgent });
   if (response && response.data) return response.data.data;
   return null;
+};
+
+const makeQuery = (location, year) => {
+  let whereQuery = '';
+
+  if (location) {
+    const geoJSON = {
+      type: 'Feature',
+      properties: {},
+      geometry: JSON.parse(location.geometry),
+    };
+    // Reverse coordinates to get [latitude, longitude]
+    const geoJSONreverse = reverse(geoJSON);
+    whereQuery = `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${JSON.stringify(geoJSONreverse.geometry)}'), ST_GEOGPOINT(longitude, latitude))`;
+  }
+
+  return `SELECT DATE_TRUNC(scr5_obs_date, MONTH) as date, count(scr5_obs_date) as count
+  FROM deforestation_alerts.alerts
+  WHERE confident = 5
+    AND EXTRACT(YEAR FROM scr5_obs_date) = ${year}
+    ${whereQuery}
+  GROUP BY date
+  ORDER BY date ASC`;
 };
 
 /**
  * Data aggregated by month
  */
-const aggregated = async (locationId) => {
-  const location = await getLocation(locationId);
-  const whereQuery = location ? `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${location.geometry}'), ST_GEOGPOINT(longitude, latitude))` : '';
-  const query = `SELECT DATE_TRUNC(scr5_obs_date, MONTH) as date, count(scr5_obs_date) as count
-  FROM deforestation_alerts.alerts_dev
-  WHERE confident = 5 ${whereQuery}
-  GROUP BY date`;
+const alertsJob = async (locationId, year = '2020') => {
+  // First try to get data from cache in order to reduce costs
+  const cacheKey = `${locationId || ''}_${year}`;
+  if (cache[cacheKey]) {
+    console.log(`Rensponse from cache ${cacheKey}`);
+    return cache[cacheKey];
+  }
 
+  const location = locationId && await getLocation(locationId);
   const options = {
-    query,
+    query: makeQuery(location, year),
     // Location must match that of the dataset(s) referenced in the query.
     location: 'US',
   };
@@ -34,61 +66,18 @@ const aggregated = async (locationId) => {
 
   // Wait for the query to finish
   const [rows] = await job.getQueryResults();
+
+  // Store in cache
+  cache[cacheKey] = rows;
 
   return rows;
 }
 
-/**
- * Data aggregated by month, latitude and longitude
- */
-const layer = async (locationId) => {
-  const location = await getLocation(locationId);
-  const whereQuery = location ? `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${location.geometry}'), ST_GEOGPOINT(longitude, latitude))` : '';
-  const query = `SELECT latitude, longitude, DATE_TRUNC(scr5_obs_date, MONTH) as date, count(scr5_obs_date) as count
-  FROM deforestation_alerts.alerts_dev
-  WHERE confident = 5 ${whereQuery}
-  GROUP BY latitude, longitude, date`;
-
-  const options = {
-    query,
-    // Location must match that of the dataset(s) referenced in the query.
-    location: 'US',
-  };
-
-  // Run the query as a job
-  const [job] = await bigquery.createQueryJob(options);
-  console.log(`Job ${job.id} started.`);
-
-  // Wait for the query to finish
-  const [rows] = await job.getQueryResults();
-
-  return rows;
-};
-
-const serializeToGeoJSON = (data) => ({
-  type: 'FeatureCollection',
-  name: 'deforestation-alerts',
-  features: data.map((d) => ({
-    type: 'Feature',
-    properties: d,
-    geometry: {
-      type: 'Point',
-      coordinates: [d.latitude, d.longitude],
-    },
-  })),
-});
-
 exports.fetchAlerts = (req, res) => {
   // Get data and return a JSON
   async function fetch() {
-    const locationId = req.query.location_id;
-    if (req.query.format === 'geojson') {
-      const result =  await layer(locationId);
-      res.json(serializeToGeoJSON(result));
-    } else {
-      const result =  await aggregated(locationId);
-      res.json(result);
-    }
+    const result =  await alertsJob(req.query.location_id, req.query.year);
+    res.json(result);
   }
 
   // Set CORS headers for preflight requests
