@@ -40,8 +40,8 @@ const pipeline = chain([
       first_obs_date: format(first_obs_date, 'yyyy-MM-dd'),
       last_obs_date: format(last_obs_date, 'yyyy-MM-dd'),
       scr5_obs_date: format(scr5_obs_date, 'yyyy-MM-dd'),
-      latitude: geometry.coordinates[0],
-      longitude: geometry.coordinates[1],
+      latitude: geometry.coordinates[1],
+      longitude: geometry.coordinates[0],
     };
     return result;
   },
