@@ -19,8 +19,6 @@ const getLocation = async (locationId) => {
 };
 
 const makeQuery = (location, year) => {
-  let whereQuery = '';
-
   if (location) {
     const geoJSON = {
       type: 'Feature',
@@ -29,14 +27,26 @@ const makeQuery = (location, year) => {
     };
     // Reverse coordinates to get [latitude, longitude]
     const geoJSONreverse = reverse(geoJSON);
-    whereQuery = `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${JSON.stringify(geoJSONreverse.geometry)}'), ST_GEOGPOINT(longitude, latitude))`;
+    const whereQuery = `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${JSON.stringify(geoJSONreverse.geometry)}'), ST_GEOGPOINT(longitude, latitude))`;
+
+    return `SELECT latitude, longitude, count(ST_GEOGPOINT(longitude, latitude)) as count
+    FROM deforestation_alerts.alerts
+    WHERE confident = 5
+      AND EXTRACT(YEAR FROM scr5_obs_date) = ${year}
+      ${whereQuery}
+    GROUP BY latitude, longitude`;
   }
 
-  return `SELECT latitude, longitude, count(ST_GEOGPOINT(longitude, latitude)) as count
-  FROM deforestation_alerts.alerts
-  WHERE confident = 5
-    AND EXTRACT(YEAR FROM scr5_obs_date) = ${year}
-    ${whereQuery}
+  return `WITH a AS (
+    SELECT TRUNC(longitude, 2) as longitude,
+      TRUNC(latitude, 2) as latitude,
+    FROM deforestation_alerts.alerts
+    WHERE confident = 5
+      AND EXTRACT(YEAR FROM scr5_obs_date) = ${year}
+    GROUP BY latitude, longitude
+  )
+  SELECT latitude, longitude, COUNT(ST_GEOGPOINT(longitude, latitude)) as count
+  FROM a
   GROUP BY latitude, longitude`;
 };
 
