@@ -23,7 +23,7 @@ const makeQuery = (location, year) => {
     const geoJSON = {
       type: 'Feature',
       properties: {},
-      geometry: JSON.parse(location.geometry),
+      geometry: location.geometry,
     };
     // Reverse coordinates to get [latitude, longitude]
     const geoJSONreverse = reverse(geoJSON);
@@ -50,6 +50,21 @@ const makeQuery = (location, year) => {
   GROUP BY latitude, longitude`;
 };
 
+const serializeToGeoJSON = (data) => ({
+  type: 'FeatureCollection',
+  name: 'deforestation-alerts',
+  features: data.map((d) => ({
+    type: 'Feature',
+    properties: {
+      count: d.count,
+    },
+    geometry: {
+      type: 'Point',
+      coordinates: [d.longitude, d.latitude],
+    },
+  })),
+});
+
 /**
  * Data aggregated by month, latitude and longitude
  */
@@ -75,32 +90,18 @@ const alertsJob = async (locationId, year = '2020') => {
   // Wait for the query to finish
   const [rows] = await job.getQueryResults();
 
+  const result = serializeToGeoJSON(rows);
   // Store in cache
-  cache[cacheKey] = rows;
+  cache[cacheKey] = result;
 
-  return rows;
+  return result;
 };
-
-const serializeToGeoJSON = (data) => ({
-  type: 'FeatureCollection',
-  name: 'deforestation-alerts',
-  features: data.map((d) => ({
-    type: 'Feature',
-    properties: {
-      count: d.count,
-    },
-    geometry: {
-      type: 'Point',
-      coordinates: [d.latitude, d.longitude],
-    },
-  })),
-});
 
 exports.fetchAlertsHeatmap = (req, res) => {
   // Get data and return a JSON
   async function fetch() {
     const result =  await alertsJob(req.query.location_id, req.query.year);
-    res.json(serializeToGeoJSON(result));
+    res.json(result);
   }
 
   // Set CORS headers for preflight requests

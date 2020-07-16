@@ -26,7 +26,7 @@ const makeQuery = (location, year) => {
     const geoJSON = {
       type: 'Feature',
       properties: {},
-      geometry: JSON.parse(location.geometry),
+      geometry: location.geometry,
     };
     // Reverse coordinates to get [latitude, longitude]
     const geoJSONreverse = reverse(geoJSON);
