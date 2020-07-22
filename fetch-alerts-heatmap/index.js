@@ -18,7 +18,9 @@ const getLocation = async (locationId) => {
   return null;
 };
 
-const makeQuery = (location, year) => {
+const makeQuery = (location, startDate, endDate) => {
+  let query;
+
   if (location) {
     const geoJSON = {
       type: 'Feature',
@@ -29,25 +31,29 @@ const makeQuery = (location, year) => {
     const geoJSONreverse = reverse(geoJSON);
     const whereQuery = `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${JSON.stringify(geoJSONreverse.geometry)}'), ST_GEOGPOINT(longitude, latitude))`;
 
-    return `SELECT latitude, longitude, count(ST_GEOGPOINT(longitude, latitude)) as count
+    query = `SELECT latitude, longitude, count(ST_GEOGPOINT(longitude, latitude)) as count
     FROM deforestation_alerts.alerts
     WHERE confident = 5
-      AND EXTRACT(YEAR FROM scr5_obs_date) = ${year}
+      AND scr5_obs_date >= '${startDate}'
+      AND scr5_obs_date <= '${endDate}'
       ${whereQuery}
+    GROUP BY latitude, longitude`;
+  } else {
+    query = `WITH a AS (
+      SELECT TRUNC(longitude, 2) as longitude,
+        TRUNC(latitude, 2) as latitude,
+      FROM deforestation_alerts.alerts
+      WHERE confident = 5
+        AND scr5_obs_date >= '${startDate}'
+        AND scr5_obs_date <= '${endDate}'
+      GROUP BY latitude, longitude
+    )
+    SELECT latitude, longitude, COUNT(ST_GEOGPOINT(longitude, latitude)) as count
+    FROM a
     GROUP BY latitude, longitude`;
   }
 
-  return `WITH a AS (
-    SELECT TRUNC(longitude, 2) as longitude,
-      TRUNC(latitude, 2) as latitude,
-    FROM deforestation_alerts.alerts
-    WHERE confident = 5
-      AND EXTRACT(YEAR FROM scr5_obs_date) = ${year}
-    GROUP BY latitude, longitude
-  )
-  SELECT latitude, longitude, COUNT(ST_GEOGPOINT(longitude, latitude)) as count
-  FROM a
-  GROUP BY latitude, longitude`;
+  return query;
 };
 
 const serializeToGeoJSON = (data) => ({
@@ -67,10 +73,13 @@ const serializeToGeoJSON = (data) => ({
 
 /**
  * Data aggregated by month, latitude and longitude
+ * @param {ID} locationId
+ * @param {Date} startDate
+ * @param {Date} endDate
  */
-const alertsJob = async (locationId, year = '2020') => {
+const alertsJob = async (locationId, startDate = '2020-01-01', endDate = '2020-12-31') => {
   // First try to get data from cache in order to reduce costs
-  const cacheKey = `${locationId || ''}_${year}`;
+  const cacheKey = `${locationId || ''}_${startDate}_${endDate}`;
   if (cache[cacheKey]) {
     console.log(`Rensponse from cache ${cacheKey}`);
     return cache[cacheKey];
@@ -78,7 +87,7 @@ const alertsJob = async (locationId, year = '2020') => {
 
   const location = await getLocation(locationId);
   const options = {
-    query: makeQuery(location, year),
+    query: makeQuery(location, startDate, endDate),
     // Location must match that of the dataset(s) referenced in the query.
     location: 'US',
   };
@@ -100,7 +109,9 @@ const alertsJob = async (locationId, year = '2020') => {
 exports.fetchAlertsHeatmap = (req, res) => {
   // Get data and return a JSON
   async function fetch() {
-    const result =  await alertsJob(req.query.location_id, req.query.year);
+    const { location_id, start_date, end_date } = req.query;
+    console.log(location_id, start_date, end_date)
+    const result =  await alertsJob(location_id, start_date, end_date);
     res.json(result);
   }
 
