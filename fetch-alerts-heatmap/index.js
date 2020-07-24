@@ -31,26 +31,31 @@ const makeQuery = (location, startDate, endDate) => {
     const geoJSONreverse = reverse(geoJSON);
     const whereQuery = `AND ST_INTERSECTS(ST_GEOGFROMGEOJSON('${JSON.stringify(geoJSONreverse.geometry)}'), ST_GEOGPOINT(longitude, latitude))`;
 
-    query = `SELECT latitude, longitude, count(ST_GEOGPOINT(longitude, latitude)) as count
-    FROM deforestation_alerts.alerts
-    WHERE confident = 5
-      AND scr5_obs_date >= '${startDate}'
-      AND scr5_obs_date <= '${endDate}'
-      ${whereQuery}
-    GROUP BY latitude, longitude`;
-  } else {
     query = `WITH a AS (
-      SELECT TRUNC(longitude, 2) as longitude,
-        TRUNC(latitude, 2) as latitude,
+      SELECT latitude, longitude, count(ST_GEOGPOINT(longitude, latitude)) AS count
       FROM deforestation_alerts.alerts
       WHERE confident = 5
         AND scr5_obs_date >= '${startDate}'
         AND scr5_obs_date <= '${endDate}'
+        ${whereQuery}
+    )
+    SELECT latitude, longitude, count, MIN(count) OVER() AS min, MAX(count) OVER() AS max
+    FROM a`;
+  } else {
+    query = `WITH a AS (
+      SELECT TRUNC(longitude, 2) AS longitude,
+        TRUNC(latitude, 2) AS latitude,
+      FROM deforestation_alerts.alerts
+      WHERE confident = 5
+        AND scr5_obs_date >= '${startDate}'
+        AND scr5_obs_date <= '${endDate}'
+    ), b AS (
+      SELECT latitude, longitude, COUNT(ST_GEOGPOINT(longitude, latitude)) AS count
+      FROM a
       GROUP BY latitude, longitude
     )
-    SELECT latitude, longitude, COUNT(ST_GEOGPOINT(longitude, latitude)) as count
-    FROM a
-    GROUP BY latitude, longitude`;
+    SELECT latitude, longitude, count, MIN(count) OVER() AS min, MAX(count) OVER() AS max
+    FROM b`;
   }
 
   return query;
@@ -69,6 +74,10 @@ const serializeToGeoJSON = (data) => ({
       coordinates: [d.longitude, d.latitude],
     },
   })),
+  metadata: {
+    max: data[0].max,
+    min: data[0].min,
+  },
 });
 
 /**
@@ -110,7 +119,6 @@ exports.fetchAlertsHeatmap = (req, res) => {
   // Get data and return a JSON
   async function fetch() {
     const { location_id, start_date, end_date } = req.query;
-    console.log(location_id, start_date, end_date)
     const result =  await alertsJob(location_id, start_date, end_date);
     res.json(result);
   }
