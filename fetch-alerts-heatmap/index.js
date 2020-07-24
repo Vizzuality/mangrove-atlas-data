@@ -38,6 +38,7 @@ const makeQuery = (location, startDate, endDate) => {
         AND scr5_obs_date >= '${startDate}'
         AND scr5_obs_date <= '${endDate}'
         ${whereQuery}
+      GROUP BY latitude, longitude
     )
     SELECT latitude, longitude, count, MIN(count) OVER() AS min, MAX(count) OVER() AS max
     FROM a`;
@@ -68,6 +69,7 @@ const serializeToGeoJSON = (data) => ({
     type: 'Feature',
     properties: {
       count: d.count,
+      intensity: d.count / d.max,
     },
     geometry: {
       type: 'Point',

@@ -54,7 +54,16 @@ NOTE: This command takes long time depending on your machine. Be patient, in cas
 It will upload to BigQuery table the file created by the command above.
 
 ```
-sh ./start.sh upload
+# TEMPORAL
+gsutil cp ./data/edited.json gs://mangrove_atlas/deforestation-alerts/africa/
+bq load \                                   
+    --autodetect \
+    --replace \
+    --source_format=NEWLINE_DELIMITED_JSON \
+    deforestation_alerts.alerts \
+    gs://mangrove_atlas/deforestation-alerts/africa/edited.json
+# TO-DO
+sh ./start.sh upload 
 ```
 
 ## Sync new data to BigQuery table
