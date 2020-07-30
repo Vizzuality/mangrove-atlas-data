@@ -65,6 +65,12 @@ exports.analyse = (req, res) => {
     res.status(204).send('');
   }
 
+  if (!assetId || !geometry) {
+    return res.json({
+      error: 'assetId and geometry are required'
+    });
+  }
+
   ee.data.authenticateViaPrivateKey(PRIVATE_KEY, () => {
     ee.initialize(null, null, () => {
       const result = calcHistogram(assetId, geometry);
