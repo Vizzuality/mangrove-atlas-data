@@ -63,6 +63,7 @@ var app = (name) => {
 exports.analyse = (req, res) => {
   // const assetId = req.body.assetId;
   // const geometry = req.body.geometry;
+  //const name = req.body.name;
   var name = req.query.name;
 
   res.set('Access-Control-Allow-Origin', '*');
