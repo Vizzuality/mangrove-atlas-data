@@ -35,25 +35,35 @@ const serialize = (originalData) => {
   };
 };
 
-const calcHistogram = (assetId, geometry) => {
-  const image = ee.Image(assetId);
-  const reducers = ee.Reducer.histogram(20)
-      .combine(ee.Reducer.minMax(), '', true)
-      .combine(ee.Reducer.mean(),'', true )
-      .combine(ee.Reducer.stdDev(), '', true)
-      .combine(ee.Reducer.sum(), '', true);
-  const regReducer = {
-    collection: ee.FeatureCollection(geometry.features),
-    reducer: reducers
-  };
-  const histogram = image.reduceRegions(regReducer).toList(10000);
+// const calcHistogram = (assetId, geometry) => {
+//   const image = ee.Image(assetId);
+//   const reducers = ee.Reducer.histogram(20)
+//       .combine(ee.Reducer.minMax(), '', true)
+//       .combine(ee.Reducer.mean(),'', true )
+//       .combine(ee.Reducer.stdDev(), '', true)
+//       .combine(ee.Reducer.sum(), '', true);
+//   const regReducer = {
+//     collection: ee.FeatureCollection(geometry.features),
+//     reducer: reducers
+//   };
+//   const histogram = image.reduceRegions(regReducer).toList(10000);
 
-  return histogram;
-};
+//   return histogram;
+// };
+
+
+// Define your earthengine function
+var app = (name) => {
+  return "Hello" + name;
+}
+
+
+
 
 exports.analyse = (req, res) => {
-  const assetId = req.body.assetId;
-  const geometry = req.body.geometry;
+  // const assetId = req.body.assetId;
+  // const geometry = req.body.geometry;
+  var name = req.query.name;
 
   res.set('Access-Control-Allow-Origin', '*');
 
@@ -65,15 +75,21 @@ exports.analyse = (req, res) => {
     res.status(204).send('');
   }
 
-  if (!assetId || !geometry) {
+  // if (!assetId || !geometry) {
+  //   return res.json({
+  //     error: 'assetId and geometry are required'
+  //   });
+  // // Error if required parameter(s) not given
+  if (!name) {
     return res.json({
-      error: 'assetId and geometry are required'
+      error: 'name is required'
     });
   }
 
   ee.data.authenticateViaPrivateKey(PRIVATE_KEY, () => {
     ee.initialize(null, null, () => {
-      const result = calcHistogram(assetId, geometry);
+      // const result = calcHistogram(assetId, geometry);
+      var result = app(name);
       result.evaluate((json) => res.status(200).json(json));
     });
   });
