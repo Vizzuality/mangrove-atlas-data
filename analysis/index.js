@@ -58,8 +58,6 @@ var app = (name) => {
 }
 
 
-
-
 exports.analyse = (req, res) => {
   // const assetId = req.body.assetId;
   // const geometry = req.body.geometry;
@@ -83,7 +81,7 @@ exports.analyse = (req, res) => {
   // // Error if required parameter(s) not given
   if (!name) {
     return res.json({
-      error: 'name is required'
+      error: 'name is required dummy!'
     });
   }
 
