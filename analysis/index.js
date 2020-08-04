@@ -59,10 +59,26 @@ var app = (name) => {
 
 
 exports.analyse = (req, res) => {
-  // const assetId = req.body.assetId;
-  // const geometry = req.body.geometry;
-  //const name = req.body.name;
-  var name = req.query.name;
+  const assetId = req.body.assetId;
+  const geometry = req.body.geometry;
+  const name = req.query.name;
+  const test = req.query.this;
+
+  if (name || test) {
+    return res.json({
+      error: `name is ${name} and this is ${test} and asset is ${assetId}`
+    });
+  // Error if required parameter(s) not given
+
+  // req.body ==> json payload in POST request
+  // if payload contains the key 'geometry' ==> req.body.geometry
+
+  // req.query ==> localhost:8080?analysis=mean&period=[2015, 2019]
+  // anything after the ? gets cast to  an object
+  // key=value e.g. req.query.analysis ==> 'mean'
+  // separated by &
+  // always return a string: period=[2015, 2019] ==> req.query.period = '[2015, 2019]'
+
 
   res.set('Access-Control-Allow-Origin', '*');
 
