@@ -64,10 +64,6 @@ exports.analyse = (req, res) => {
   const name = req.query.name;
   const test = req.query.this;
 
-  if (name || test) {
-    return res.json({
-      error: `name is ${name} and this is ${test} and asset is ${assetId}`
-    });
   // Error if required parameter(s) not given
 
   // req.body ==> json payload in POST request
@@ -95,9 +91,9 @@ exports.analyse = (req, res) => {
   //     error: 'assetId and geometry are required'
   //   });
   // // Error if required parameter(s) not given
-  if (!name) {
+  if (test || name) {
     return res.json({
-      error: 'name is required dummy!'
+      error: `name is ${name} and this is ${test} and asset is ${assetId}`
     });
   }
 
@@ -108,5 +104,7 @@ exports.analyse = (req, res) => {
       result.evaluate((json) => res.status(200).json(json));
     });
   });
+
+
 };
 
