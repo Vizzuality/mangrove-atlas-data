@@ -91,11 +91,11 @@ exports.analyse = (req, res) => {
   //     error: 'assetId and geometry are required'
   //   });
   // // Error if required parameter(s) not given
-  if (test || name) {
-    return res.json({
-      error: `name is ${name} and this is ${test} and asset is ${assetId}`
-    });
-  }
+  // if (test || name) {
+  //   return res.json({
+  //     error: `name is ${name} and this is ${test} and asset is ${assetId}`
+  //   });
+  // }
 
   ee.data.authenticateViaPrivateKey(PRIVATE_KEY, () => {
     ee.initialize(null, null, () => {
