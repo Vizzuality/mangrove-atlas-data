@@ -51,7 +51,6 @@ const calcHistogram = (assetId, geometry) => {
   return histogram;
 };
 
-
 exports.analyse = (req, res) => {
   const assetId = req.body.assetId;
   const geometry = req.body.geometry;
@@ -70,15 +69,12 @@ exports.analyse = (req, res) => {
     return res.json({
       error: 'assetId and geometry are required'
     });
-
+  }
 
   ee.data.authenticateViaPrivateKey(PRIVATE_KEY, () => {
     ee.initialize(null, null, () => {
       const result = calcHistogram(assetId, geometry);
-      var result = app(name);
       result.evaluate((json) => res.status(200).json(json));
     });
   });
-
-
 };
