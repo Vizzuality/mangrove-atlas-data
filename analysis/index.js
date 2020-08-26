@@ -1,143 +1,56 @@
+
+// Load earthengine package
 const ee = require('@google/earthengine');
-const PRIVATE_KEY = require('./credentials.json');
+// Load privateKey
+const privateKey = require('./credentials.json');
+console.log('info: ee package and Private key loaded');
 
-/// Insert GEE function
-console.log('checkpoint 1: ee and Private key ok)');
-function app(locations){
-  
-  // GET DATA LAYERS
-  // Get mangrove land-cover
-  var mg_extent = ee.ImageCollection('projects/global-mangrove-watch/land-cover/mangrove-extent_version-2-0_1996--2016')
-
-  // Get mangrove extent gain
-  var mg_gain = ee.ImageCollection('projects/global-mangrove-watch/land-cover/mangrove-extent-gain_version-2-0_1996--2016')
-  .map(function(im){
-    var ts = ee.Date.fromYMD(ee.Number.parse(im.get('end_year')),1,1)
-    return im
-    .copyProperties(im)
-    .set({'system:time_start':ts})
-  })
-  
-  // Get mangrove extent loss
-  var mg_loss = ee.ImageCollection('projects/global-mangrove-watch/land-cover/mangrove-extent-loss_version-2-0_1996--2016')
-  .map(function(im){
-    var ts = ee.Date.fromYMD(ee.Number.parse(im.get('end_year')),1,1)
-    return im
-    .copyProperties(im)
-    .set({'system:time_start':ts})
-  })
-  
-  
-  // ANALYSIS PER GEOMETRY
-  function get_zonal_stats(feature){
-    
-    // PROPERTY NAME LIST 
-    var pnl = ee.List(['area_mangrove_gain_m2', 'area_mangrove_loss_m2', 'area_mangrove_m2'])
-    
-    // USE BEST EFFORT?
-    var bestEffort = false
-    
-    // YEAR LIST
-    var year_list = ee.List([1996, 2007, 2008, 2009, 2010, 2015, 2016])
-    var year_list_change = ee.List([2007, 2008, 2009, 2010, 2015, 2016])
-    
-    // SCALE (M) OF CALCULATION
-    var ns = mg_extent
-    .first()
-    .projection()
-    .nominalScale()
-    
-    var scale = ns//ee.Number(30)
-    
-    
-    // Convert feature to a geometry
-    var aoi = feature.geometry()
-    
-    /** Helper to calculate zonal stats
-     *  
-     * @param ic {ee.Image Collection} An image collection 
-     * @param aoi {ee.Geometry} The area of interest for the zonal stats
-     * @param year_list {ee.List of Ints} List of years
-     * @param scale {ee.Number} Scale of calculations
-     * @param bestEffort {boolean} Use bestEffort
-     */
-      
-    function calc_stats(ic, aoi, year_list, scale, bestEffort){
-      
-      // Map over year list
-      var out = year_list.map(
-        function(year){
-          
-          // Get image
-          var im = ee.Image(
-          ic
-          .filterDate(ee.Date.fromYMD(year, 1, 1))
-          .filterBounds(aoi)
-          .first()
-          .clip(aoi)
-          )
-          
-          // Get band name(s)
-          var bn = im.bandNames()
-          
-          // Create reducers
-          var reducers = ee.Reducer.sum()
-          
-          // Apply reducers to area-weighted values
-          var res = im
-          .select(bn)
-          .multiply(ee.Image.pixelArea())
-          .reduceRegion({
-            reducer: reducers,
-            geometry: aoi,
-            scale: scale,
-            maxPixels: 1e13,
-            bestEffort: bestEffort
-          }).values()
-          
-          // Remove any null values
-          //res = ee.List(res).removeAll([null])
-          
-          return ee.Algorithms.If(
-            ee.Number(res.size()).gt(0.0)
-            , res.get(0)
-            , ee.Number(0.00))
-      })
-      
-      year_list = year_list.map(function(n){return ee.Number(n).format()})
-      var out_dict = ee.Dictionary.fromLists(year_list, out)
-      return out_dict
-
-    }
-    
-    // MANGROVE AREA [M2]
-    var ma = calc_stats(mg_extent, aoi, year_list, scale, bestEffort)
-    
-    // MANGROVE AREA GAIN [M2̀]
-    var mag = calc_stats(mg_gain, aoi, year_list_change, scale, bestEffort)
-    
-    // MANGROVE AREA LOSS [M2]
-    var mal = calc_stats(mg_loss, aoi, year_list_change, scale, bestEffort)
-    
-    // Combine  into list
-    var res = ee.List([mag, mal, ma])
-    
-    var out = ee.Feature(feature.set(ee.Dictionary.fromLists(pnl, res)))
-    .set({'scale_m': scale})
-    .set({'nominal_scale_m': ns})
-    
-    return out;
-}
-}
-console.log('checkpoint 2: function read)');
+// INSERT GEE FUNCTIONS
+// To load a file with functions, make sure it is included in the Docker definition!
+// Also remember to add to header of file `const ee = require('@google/earthengine');`
+const hfs = require('./helper_functions.js')
+console.log('info: helper functions loaded');
 
 // REST analysis wrapper
 exports.analyse = (req, res) => {
-  // define parameters needed
-  //const assetId = req.body.assetId;
-  const locations = req.body.locations;
 
+  // Define required parameters
+  // optionally give defaults
+  // if using 'analysis?' params are in req.query object
 
+  // Set fid [list of strings] if not given 
+  var fids = req.query.fids;
+  if (fids === undefined) { fids = ['1_2_22']; }
+  console.log('info: fids=' + fids);
+
+  // Set analysis_types [list of strings] if not given 
+  var analysis_types = req.query.analysis_types;
+  if (analysis_types === undefined) { 
+    analysis_types = ['land-cover', 'mangrove-properties', 'mangrove-carbon', 'length-coast']; 
+  }
+  console.log('info: analysis_types=' + analysis_types);
+
+  // Set timestamps [list of strings] if not given 
+  var timestamps = req.query.timestamps;
+  if (timestamps === undefined) { timestamps = ['2016-01-01T00:00:00']; }
+  console.log('info: timestamps=' + timestamps);
+
+  // Set buffer distance [m] if not given
+  var buffer_distance_m = req.query.buffer_distance_m;
+  if (buffer_distance_m === undefined) { buffer_distance_m = 200; }
+  console.log('info: buffer_distance_m=' + buffer_distance_m);
+
+  // Set nominal scale [m] if not given
+  var scale = req.query.scale;
+  if (scale === undefined) { scale = 30; }
+  console.log('info: scale=' + scale);
+
+  // Set bestEffort [boolean] if not given
+  var bestEffort = req.query.bestEffort;
+  if (bestEffort === undefined) { bestEffort = false; }
+  console.log('info: bestEffort=' + bestEffort);
+
+  // Set response permissions
   res.set('Access-Control-Allow-Origin', '*');
 
   if (req.method === 'OPTIONS') {
@@ -148,19 +61,56 @@ exports.analyse = (req, res) => {
     res.status(204).send('');
   }
 
-  // Error if parameteres are not given
-  if (!locations) {
-    return res.json({
-      error: 'location is required'
-    });
-  }
+  // Optionally give error if parameteres are not given
+  //if (!fid) {
+  //  return res.json({
+  //    error: 'FID is required'
+  // });
+  //}
 
   // Authenticate, initiate ee, do analysis, and return the result
-  ee.data.authenticateViaPrivateKey(PRIVATE_KEY, () => {
-    ee.initialize(null, null, () => {
-      //const result = calcHistogram(assetId, geometry); // app(name)
-      const result = app(locations);
-      result.evaluate((json) => res.status(200).json(json));
+  // Authenticate using a service account.
+  ee.data.authenticateViaPrivateKey(privateKey, function (e) {
+    console.log('info: Authenticating earth-engine')
+    // Initialise earth engine
+    ee.initialize(null, null, function () {
+      console.log('info: Initializing earth-engine')
+
+      // Test we are using earthengine
+      // use asyncrounous ee calls to console for debugging
+      //ee.String('info: Hello from earthengine')
+      //.evaluate(function (info) { console.log(info); });
+
+      // Convert params to ee objects
+      fids = ee.List(fids);
+      //fids.evaluate(function(info) {console.log(info);})
+      timestamps = ee.List(timestamps).map(function (s) { return ee.Date(s) });
+      //timestamps.evaluate(function(info) {console.log(info);})
+      buffer_distance_m = ee.Number(buffer_distance_m);
+      //buffer_distance_m.evaluate(function(info) {console.log(info);})
+      analysis_types = ee.List(analysis_types);
+      //analysis_types.evaluate(function(info) {console.log(info);})  
+
+      // Get featureCollection
+      console.log('info: Getting ee.featureCollection')
+      const fc = hfs.get_features_by_fid(fids)
+      //fc.evaluate(function(info) {console.log(info);});
+
+      // Get geometry of fc (if single fid, this is geometry of the feature)
+      console.log('info: Converting to ee.Geometry')
+      const aoi = fc.geometry()
+      //aoi.evaluate(function(info) {console.log(info);});
+
+      // Get analysis
+      console.log('info: Getting analysis results dictionary')
+      var out = hfs.calc_mangrove_analysis(
+        analysis_types,aoi, timestamps, buffer_distance_m, scale, bestEffort)
+      //console.log('test: analysis \n') 
+      //out.evaluate((info) => { return console.log(info); });
+
+      // Return results as JSON to client
+      out.evaluate((json) => res.status(200).json(json))
     });
   });
+
 };
