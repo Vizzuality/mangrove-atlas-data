@@ -22,8 +22,32 @@ const ee = require('@google/earthengine');
 // FEATURES AND GEOMETRIES
 //////////////////////////////////////////////////////////////////////////////
 
+
 /**
- * Filter feature collection by feature id
+ * Filter feature collection by a single feature id
+ * 
+ * @param {ee.String} fid Single feature id (FID), e.g., '1_2_22'
+ * @param {ee.String} fid_field Name of the fid property
+ * @param {ee.String} asset_id The table asset id string to filter, defaults to "projects/global-mangrove-watch/boundaries/locations_aoi-country-wdpa_old"
+ * 
+ * @return {ee.Feature} A single feature with matching FID
+ * 
+ * @export
+ */
+
+function get_feature_by_fid(fid, fid_key, asset_id) {
+    if (fid_key === undefined) { fid_key = "id"; }
+    if (asset_id === undefined) {
+        asset_id = "projects/global-mangrove-watch/boundaries/locations_aoi-country-wdpa_old";
+    }
+    return ee.FeatureCollection(asset_id)
+        .filterMetadata(fid_key, 'equals', fid)
+        .first();
+}
+exports.get_feature_by_fid = get_feature_by_fid;
+
+/**
+ * Filter feature collection by a list of feature ids
  * 
  * @param {ee.List} fids List of feature ids, e.g., ['1_2_22', '1_2_13']
  * @param {ee.String} fid_field Name of the fid property
@@ -34,7 +58,7 @@ const ee = require('@google/earthengine');
  * @export
  */
 
-function get_features_by_fid(fids, fid_key, asset_id) {
+function get_features_by_fids(fids, fid_key, asset_id) {
     if (fid_key === undefined) { fid_key = "id"; }
     if (asset_id === undefined) {
         asset_id = "projects/global-mangrove-watch/boundaries/locations_aoi-country-wdpa_old";
@@ -42,10 +66,34 @@ function get_features_by_fid(fids, fid_key, asset_id) {
     return ee.FeatureCollection(asset_id)
         .filter(ee.Filter.inList(fid_key, ee.List(fids)));
 }
-exports.get_features_by_fid = get_features_by_fid;
+exports.get_features_by_fids = get_features_by_fids;
 
 /**
- * Filter feature collection by iso code
+ * Filter feature collection by single iso code
+ * 
+ * @param {ee.List} iso_list List of Alpha 3 ISO codes, e.g., 'TZA'
+ * @param {ee.String} iso_key Name of the iso property
+ * @param {ee.String} asset_id The table asset id string to filter, defaults to "projects/global-mangrove-watch/boundaries/locations_aoi-country-wdpa_old"
+ * 
+ * @return {ee.Feature} Single selected Feature
+ * 
+ * @export
+ */
+
+function get_feature_by_country(iso, iso_field, asset_id) {
+    if (iso_field === undefined) { iso_field = "iso"; }
+    if (asset_id === undefined) {
+        asset_id = "projects/global-mangrove-watch/boundaries/locations_aoi-country-wdpa_old";
+    }
+    return ee.FeatureCollection(asset_id)
+        .filterMetadata('type', 'equals', 'country')
+        .filterMetadata(iso_field, 'equals', iso)
+        .first();
+}
+exports.get_feature_by_country = get_feature_by_country;
+
+/**
+ * Filter feature collection by list of iso codes
  * 
  * @param {ee.List} iso_list List of Alpha 3 ISO codes, e.g., ['TZA', 'SEN']
  * @param {ee.String} iso_key Name of the iso property
@@ -56,7 +104,7 @@ exports.get_features_by_fid = get_features_by_fid;
  * @export
  */
 
-function get_country(iso_list, iso_field, asset_id) {
+function get_features_by_countries(iso_list, iso_field, asset_id) {
     if (iso_field === undefined) { iso_field = "iso"; }
     if (asset_id === undefined) {
         asset_id = "projects/global-mangrove-watch/boundaries/locations_aoi-country-wdpa_old";
@@ -65,7 +113,7 @@ function get_country(iso_list, iso_field, asset_id) {
         .filterMetadata('type', 'equals', 'country')
         .filter(ee.Filter.inList(iso_field, ee.List(iso_list)));
 }
-exports.get_country = get_country;
+exports.get_features_by_countries = get_features_by_countries;
 
 /**
  * Create universal unique identifier (RFC4122)
@@ -92,6 +140,23 @@ function createUUID() {
 exports.createUUID = createUUID;
 
 /**
+ * Update a features system index from a property
+ * 
+ * @param {ee.Feature} f Single ee.Feature
+ * @param {ee.String} fid_key Name of the Features fid property
+* 
+ * @return {ee.Feature} A single feature with an updated `ssystem:index` value
+ * 
+ * @export
+ */
+
+function update_system_index(f, fid_key) {
+    var fid = f.get(fid_key);
+    return f.set('system:index', fid);
+}
+exports.update_system_index = update_system_index;
+
+/**
  * Check if a features (multi) polygon geometry has inner holes
  * 
  * @returns {ee.Feature} Feature with property 'hasHoles' 
@@ -100,7 +165,7 @@ exports.createUUID = createUUID;
  * 
  */
 
-function check_has_holes (feature) {
+function check_has_holes(feature) {
     var hasHoles = feature.geometry()
         .geometries()
         .map(function (g) { return ee.Geometry(g).coordinates().size().gt(1) });
@@ -117,7 +182,7 @@ exports.check_has_holes = check_has_holes;
  * 
  */
 
-function remove_holes (geometry) {
+function remove_holes(geometry) {
     return ee.Geometry.MultiPolygon(
         geometry
             .geometries()
@@ -1529,19 +1594,19 @@ exports.calc_mangrove_carbon_histogram = calc_mangrove_carbon_histogram;
  * 
  * Note 'length-coast' is slow for large geometries.
  * 
- * @param analysis_types {ee.List} List of analysis to apply, giving properties:
+ * @param {ee.List} analysis_types  List of analysis to apply, giving properties:
  *  'length-coast': 'length_coast_m', 'length_mangrove_m'
  *  'land-cover': 'area_mangrove_m2', 'area_mangrove_gain_m2', 'area_mangrove_loss_m2'
  *  'mangrove-properties': 'agb_mangrove_m', 'agb_mangrove_hist_m', 'hmax_mangrove_m', 'hmax_mangrove_hist_m'
  *  'mangrove-carbon': 'agb_tco2e', 'soc_tco2e', 'toc_tco2e', 'agb_hist_tco2eha-1', 'soc_hist_tco2eha-1', 'toc_hist_tco2eha-1' 
- * @param aoi {ee.Geometry} The area of interest for the calculations
- * @param timestamps {ee.List of ee.Date objects} List of timestamps;
+ * @param {ee.Geometry} aoi  The area of interest for the calculations
+ * @param {ee.List of ee.Date objects} timestamps List of timestamps;
  * note if an image is not available null is returned.
- * @param buffer_distance_m {ee.Number} Distance to buffer mangrove extent for length-coast calculations, optional, default is 200 m
- * @param scale {ee.Number} Nominal scale of calculations, optional, default is 30 m
- * @param bestEffort {boolean} Use bestEffort for the calculations, optional, default is false
+ * @param {ee.Number}  buffer_distance_m Distance to buffer mangrove extent for length-coast calculations, optional, default is 200 m
+ * @param {ee.Number} scale Nominal scale of calculations, optional, default is 30 m
+ * @param {boolean} bestEffort Use bestEffort for the calculations, optional, default is false
  * 
- * @return Named dictionary object with example structure: {"agb_mangrove_hist_tha-1":{"bestEffort":false,"scale":30,"short_name":"agb_mangrove_hist_tha-1","standard_name":"histogram_of_mangrove_aboveground_biomass_density","timestamps":["2016-01-01T00:00:00"],"title":"Histogram of mangrove above-ground biomass density","units":"t / ha","values":[{"breaks_lower":[0,10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200,210,220,230,240,250,260,270,280,290,300,310,320,330,340,350,360,370,380,390,400,410,420,430,440,450,460,470,480,490,500,510,520,530,540,550,560,570,580,590,600,610,620,630,640,650,660,670,680,690,700,710,720,730,740,750,760,770,780,790,800,810,820,830,840,850,860,870,880,890,900,910,920,930,940,950,960,970,980,990],"group_colors":["#EAF19D","#B8E98E","#1B97C1","#1C52A3","#13267F"],"group_labels":["0--250","250--500","500--750","750--1000","1000--1250"],"group_lower":[0,250,500,750,1000],"group_upper":[250,500,750,1000,1250],"group_values":[985764,200545,72483,0,0],"max":1000,"min":0,"n_breaks":100,"step":10,"values":[57417,53120,73578,85934,0,93543,0,102940,0,0,112719,0,0,115600,0,0,110254,0,0,0,97894,0,0,0,82765,0,0,0,0,68179,0,0,0,0,55618,0,0,0,0,43790,0,0,0,0,0,32958,0,0,0,0,0,72483,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]},"agb_mangrove_tha-1":{"bestEffort":false,"scale":30,"short_name":"agb_mangrove_tha-1","standard_name":"summary_stats_of_mangrove_aboveground_biomass_density","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove above-ground biomass density","units":"t / ha","values":[{"max":519.070556640625,"mean":170.58400793528858,"median":133.98153686523438,"min":0.2844082713127136,"p1":0.775247307184068,"p25":56.501323699951165,"p75":247.23045349121088,"p99":519.070556640625,"std":143.1557643355937}]},"agb_tco2e":{"bestEffort":false,"scale":30,"short_name":"agb_tco2e","standard_name":"total_mangrove_above_ground_biomass_organic_carbon_as_carbon_dioxide_equivilent","timestamps":["2016-01-01T00:00:00"],"title":"Total above-ground biomass carbon","units":"t CO<sub>2</sub>e","values":[31425649.05915624]},"area_mangrove_gain_m2":{"bestEffort":false,"scale":30,"short_name":"area_mangrove_gain_m2","standard_name":"total_gain_in_area_of_mangroves","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove extent gain","units":"m<sup>2</sup>","values":[15086297.491149902]},"area_mangrove_loss_m2":{"bestEffort":false,"scale":30,"short_name":"area_mangrove_loss_m2","standard_name":"total_loss_in_area_of_mangroves","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove extent loss","units":"m<sup>2</sup>","values":[19874671.181396484]},"area_mangrove_m2":{"bestEffort":false,"scale":30,"short_name":"area_mangrove_m2","standard_name":"total_area_of_mangroves","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove extent","units":"m<sup>2</sup>","values":[1114221645.32688]},"hmax_mangrove_hist_m":{"bestEffort":false,"scale":30,"short_name":"hmax_mangrove_hist_m","standard_name":"histogram_of_mangrove_maximum_canopy_height","timestamps":["2016-01-01T00:00:00"],"title":"Histogram of mangrove maximum canopy height","units":"m","values":[{"breaks_lower":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],"group_colors":["#C9BB42","#8BA205","#428710","#0A6624","#103C1F"],"group_labels":["0--13","13--26","26--39","39--52","52--65"],"group_lower":[0,13,26,39,52],"group_upper":[13,26,39,52,65],"group_values":[466532,686819,105441,0,0],"max":100,"min":0,"n_breaks":100,"step":1,"values":[13417,14035,0,29965,0,53120,73578,0,85934,0,93543,102940,0,112719,0,115600,110254,0,97894,0,82765,0,68179,55618,0,43790,0,32958,72483,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]},"hmax_mangrove_m":{"bestEffort":false,"scale":30,"short_name":"hmax_mangrove_m","standard_name":"summary_stats_of_mangrove_maximum_canopy_height","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove maximum canopy height","units":"m","values":[{"max":28.849000930786133,"mean":15.425064860959022,"median":15.27299976348877,"min":0.8485000133514404,"p1":0.8485000133514404,"p25":10.182000160217285,"p75":20.36400032043457,"p99":28.849000930786133,"std":6.993273183593068}]},"length_coast_m":{"scale":30,"timestamps":["2020-06-29T00:00:00"],"units":"m","values":[2789862.8040602216]},"length_mangrove_m":{"bestEffort":false,"buffer_distance_m":200,"hasHoles":[0],"scale":30,"short_name":"length_mangrove_m","standard_name":"length_of_coast_with_mangrove_cover","timestamps":["2016-01-01T00:00:00"],"title":"Length of coast with mangroves","units":"m","values":[1283406.2149864181]},"soc_tco2e":{"bestEffort":false,"scale":30,"short_name":"soc_tco2e","standard_name":"total_mangrove_soil_organic_carbon_as_carbon_dioxide_equivilent","timestamps":["2016-01-01T00:00:00"],"title":"Total soil carbon","units":"t CO<sub>2</sub>e","values":[121190692.75639571]},"toc_hist_tco2eha-1":{"bestEffort":false,"scale":30,"short_name":"toc_hist_tco2eha-1","standard_name":"histogram_of_mangrove_total_organic_carbon_density_as_carbon_dioxide_equivilent","timestamps":["2016-01-01T00:00:00"],"title":"Histogram of total organic carbon density","units":"t CO<sub>2</sub>e / ha","values":[{"breaks_lower":[0,50,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000,1050,1100,1150,1200,1250,1300,1350,1400,1450,1500,1550,1600,1650,1700,1750,1800,1850,1900,1950,2000,2050,2100,2150,2200,2250,2300,2350,2400,2450,2500,2550,2600,2650,2700,2750,2800,2850,2900,2950,3000,3050,3100,3150,3200,3250,3300,3350,3400,3450,3500,3550,3600,3650,3700,3750,3800,3850,3900,3950,4000,4050,4100,4150,4200,4250,4300,4350,4400,4450,4500,4550,4600,4650,4700,4750,4800,4850,4900,4950],"group_colors":["#eeb66b","#e68518","#b84e17","#933a06","#5c4a3d"],"group_labels":["0--700","700--1400","1400--2100","2100--2800","2800--3500"],"group_lower":[0,700,1400,2100,2800],"group_upper":[700,1400,2100,2800,3500],"group_values":[793,709091,466317,7753,0],"max":5000,"min":0,"n_breaks":100,"step":50,"values":[0,0,0,0,0,0,0,0,0,1,5,25,158,604,1828,4576,10152,19127,32922,49368,61928,72690,78218,78390,81343,77356,72328,68865,62426,58194,53095,47936,43599,40357,36602,31555,26602,21778,16534,12762,8860,6017,3670,2051,953,533,240,125,63,51,27,25,6,5,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]},"toc_tco2e":{"short_name":"toc_tco2e","standard_name":"total_mangrove_organic_carbon_as_carbon_dioxide_equivilent","timestamps":["2016-01-01T00:00:00"],"title":"Total organic carbon","units":"t CO<sub>2</sub>e","values":[152616341.81555194]}}
+ * @return {ee.Dictionary} Named dictionary object with example structure: {"agb_mangrove_hist_tha-1":{"bestEffort":false,"scale":30,"short_name":"agb_mangrove_hist_tha-1","standard_name":"histogram_of_mangrove_aboveground_biomass_density","timestamps":["2016-01-01T00:00:00"],"title":"Histogram of mangrove above-ground biomass density","units":"t / ha","values":[{"breaks_lower":[0,10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200,210,220,230,240,250,260,270,280,290,300,310,320,330,340,350,360,370,380,390,400,410,420,430,440,450,460,470,480,490,500,510,520,530,540,550,560,570,580,590,600,610,620,630,640,650,660,670,680,690,700,710,720,730,740,750,760,770,780,790,800,810,820,830,840,850,860,870,880,890,900,910,920,930,940,950,960,970,980,990],"group_colors":["#EAF19D","#B8E98E","#1B97C1","#1C52A3","#13267F"],"group_labels":["0--250","250--500","500--750","750--1000","1000--1250"],"group_lower":[0,250,500,750,1000],"group_upper":[250,500,750,1000,1250],"group_values":[985764,200545,72483,0,0],"max":1000,"min":0,"n_breaks":100,"step":10,"values":[57417,53120,73578,85934,0,93543,0,102940,0,0,112719,0,0,115600,0,0,110254,0,0,0,97894,0,0,0,82765,0,0,0,0,68179,0,0,0,0,55618,0,0,0,0,43790,0,0,0,0,0,32958,0,0,0,0,0,72483,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]},"agb_mangrove_tha-1":{"bestEffort":false,"scale":30,"short_name":"agb_mangrove_tha-1","standard_name":"summary_stats_of_mangrove_aboveground_biomass_density","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove above-ground biomass density","units":"t / ha","values":[{"max":519.070556640625,"mean":170.58400793528858,"median":133.98153686523438,"min":0.2844082713127136,"p1":0.775247307184068,"p25":56.501323699951165,"p75":247.23045349121088,"p99":519.070556640625,"std":143.1557643355937}]},"agb_tco2e":{"bestEffort":false,"scale":30,"short_name":"agb_tco2e","standard_name":"total_mangrove_above_ground_biomass_organic_carbon_as_carbon_dioxide_equivilent","timestamps":["2016-01-01T00:00:00"],"title":"Total above-ground biomass carbon","units":"t CO<sub>2</sub>e","values":[31425649.05915624]},"area_mangrove_gain_m2":{"bestEffort":false,"scale":30,"short_name":"area_mangrove_gain_m2","standard_name":"total_gain_in_area_of_mangroves","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove extent gain","units":"m<sup>2</sup>","values":[15086297.491149902]},"area_mangrove_loss_m2":{"bestEffort":false,"scale":30,"short_name":"area_mangrove_loss_m2","standard_name":"total_loss_in_area_of_mangroves","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove extent loss","units":"m<sup>2</sup>","values":[19874671.181396484]},"area_mangrove_m2":{"bestEffort":false,"scale":30,"short_name":"area_mangrove_m2","standard_name":"total_area_of_mangroves","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove extent","units":"m<sup>2</sup>","values":[1114221645.32688]},"hmax_mangrove_hist_m":{"bestEffort":false,"scale":30,"short_name":"hmax_mangrove_hist_m","standard_name":"histogram_of_mangrove_maximum_canopy_height","timestamps":["2016-01-01T00:00:00"],"title":"Histogram of mangrove maximum canopy height","units":"m","values":[{"breaks_lower":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99],"group_colors":["#C9BB42","#8BA205","#428710","#0A6624","#103C1F"],"group_labels":["0--13","13--26","26--39","39--52","52--65"],"group_lower":[0,13,26,39,52],"group_upper":[13,26,39,52,65],"group_values":[466532,686819,105441,0,0],"max":100,"min":0,"n_breaks":100,"step":1,"values":[13417,14035,0,29965,0,53120,73578,0,85934,0,93543,102940,0,112719,0,115600,110254,0,97894,0,82765,0,68179,55618,0,43790,0,32958,72483,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]},"hmax_mangrove_m":{"bestEffort":false,"scale":30,"short_name":"hmax_mangrove_m","standard_name":"summary_stats_of_mangrove_maximum_canopy_height","timestamps":["2016-01-01T00:00:00"],"title":"Mangrove maximum canopy height","units":"m","values":[{"max":28.849000930786133,"mean":15.425064860959022,"median":15.27299976348877,"min":0.8485000133514404,"p1":0.8485000133514404,"p25":10.182000160217285,"p75":20.36400032043457,"p99":28.849000930786133,"std":6.993273183593068}]},"length_coast_m":{"scale":30,"timestamps":["2020-06-29T00:00:00"],"units":"m","values":[2789862.8040602216]},"length_mangrove_m":{"bestEffort":false,"buffer_distance_m":200,"hasHoles":[0],"scale":30,"short_name":"length_mangrove_m","standard_name":"length_of_coast_with_mangrove_cover","timestamps":["2016-01-01T00:00:00"],"title":"Length of coast with mangroves","units":"m","values":[1283406.2149864181]},"soc_tco2e":{"bestEffort":false,"scale":30,"short_name":"soc_tco2e","standard_name":"total_mangrove_soil_organic_carbon_as_carbon_dioxide_equivilent","timestamps":["2016-01-01T00:00:00"],"title":"Total soil carbon","units":"t CO<sub>2</sub>e","values":[121190692.75639571]},"toc_hist_tco2eha-1":{"bestEffort":false,"scale":30,"short_name":"toc_hist_tco2eha-1","standard_name":"histogram_of_mangrove_total_organic_carbon_density_as_carbon_dioxide_equivilent","timestamps":["2016-01-01T00:00:00"],"title":"Histogram of total organic carbon density","units":"t CO<sub>2</sub>e / ha","values":[{"breaks_lower":[0,50,100,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000,1050,1100,1150,1200,1250,1300,1350,1400,1450,1500,1550,1600,1650,1700,1750,1800,1850,1900,1950,2000,2050,2100,2150,2200,2250,2300,2350,2400,2450,2500,2550,2600,2650,2700,2750,2800,2850,2900,2950,3000,3050,3100,3150,3200,3250,3300,3350,3400,3450,3500,3550,3600,3650,3700,3750,3800,3850,3900,3950,4000,4050,4100,4150,4200,4250,4300,4350,4400,4450,4500,4550,4600,4650,4700,4750,4800,4850,4900,4950],"group_colors":["#eeb66b","#e68518","#b84e17","#933a06","#5c4a3d"],"group_labels":["0--700","700--1400","1400--2100","2100--2800","2800--3500"],"group_lower":[0,700,1400,2100,2800],"group_upper":[700,1400,2100,2800,3500],"group_values":[793,709091,466317,7753,0],"max":5000,"min":0,"n_breaks":100,"step":50,"values":[0,0,0,0,0,0,0,0,0,1,5,25,158,604,1828,4576,10152,19127,32922,49368,61928,72690,78218,78390,81343,77356,72328,68865,62426,58194,53095,47936,43599,40357,36602,31555,26602,21778,16534,12762,8860,6017,3670,2051,953,533,240,125,63,51,27,25,6,5,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]},"toc_tco2e":{"short_name":"toc_tco2e","standard_name":"total_mangrove_organic_carbon_as_carbon_dioxide_equivilent","timestamps":["2016-01-01T00:00:00"],"title":"Total organic carbon","units":"t CO<sub>2</sub>e","values":[152616341.81555194]}}
  * 
  * @export
  * 
@@ -1582,12 +1647,40 @@ exports.calc_mangrove_analysis = calc_mangrove_analysis;
 if (show_tests === true) {
     if (ee_js === true) {
 
-        print('Test get_fid:', get_features_by_fid(ee.List(['1_2_22'])));
-        print('Test get_country:', get_country(['TZA', 'SEN']));
+        // Set some testing shortcuts
+        var fid = ee.String('1_2_22');
+        var fids = ee.List(['1_2_22', '1_2_13']);
+        var iso = ee.String('TZA');
+        var isos = ee.List(['TZA', 'SEN']);
+        var feature = get_feature_by_fid(fid);
+        var aoi = feature.geometry();
+        var feature_with_holes = get_feature_by_country('IDN');
+        var aoi_with_holes = feature_with_holes.geometry();
+        var timestamps = ee.List([1996, 2010, 2016])
+            .map(function (y) { return ee.Date.fromYMD(y, 1, 1) });
+        var timestamps_2016 = ee.List([2016])
+            .map(function (y) { return ee.Date.fromYMD(y, 1, 1) });
+        var hist_dict_soc = ee.Dictionary({
+            min: ee.Number(0),
+            max: ee.Number(2500),
+            step: ee.Number(10),
+            group_lower: ee.List([0, 500, 1000, 1500, 2000]),
+            group_upper: ee.List([500, 1000, 1500, 2000, 2500]),
+            group_colors: ee.List(["#5c4a3d", "#933a06", "#b84e17", "#e68518", "#eeb66b"]).reverse()
+
+        });
+        var analysis_types = ee.List(['land-cover', 'mangrove-properties', 'mangrove-carbon', 'length-coast'])
+
+        // Print results of functions
+        print('Test get_feature_by_fid', get_feature_by_fid(fid));
+        print('Test update_system_index', update_system_index(feature, 'id'));
+        print('Test get_features_by_fids:', get_features_by_fids(fids));
+        print('Test get_feature_by_country:', get_feature_by_country(iso));
+        print('Test get_features_by_countries:', get_features_by_countries(isos));
         print('Test createUUID', createUUID());
-        print('Test check_has_holes', check_has_holes(get_country(['IDN']).first()));
-        print('Test remove_holes', remove_holes(get_country(['IDN']).geometry()));
-        print('Test intersect_and_simplify', intersect_and_simplify(get_dataset('coastline-vector'), get_country(['TZA']).geometry(), ee.Number(1000)));
+        print('Test check_has_holes', check_has_holes(feature_with_holes));
+        print('Test remove_holes', remove_holes(aoi_with_holes));
+        print('Test intersect_and_simplify', intersect_and_simplify(get_dataset('coastline-vector'), aoi, ee.Number(1000)));
         print('Test convert_carbon AGB to OC CO2e', convert_carbon(get_dataset('mangrove-agb'), 'bio_to_CO2e'));
         print('Test convert_carbon AGB to BGB', convert_carbon(get_dataset('mangrove-agb'), 'agb_to_bgb'));
         print('Test convert_carbon SOC to OC CO2e', convert_carbon(get_dataset('mangrove-soc'), 'OC_to_CO2e'));
@@ -1595,38 +1688,22 @@ if (show_tests === true) {
         print('Test get_dataset_legend', get_dataset_legend('mangrove-agb'));
         print('Test get_ic_timestamp_fc', get_ic_timestamp_fc(get_dataset('mangrove-soc')));
         print('Test get_fc_timestamps', get_fc_timestamps(get_ic_timestamp_fc(get_dataset('mangrove-soc'))));
-        print('Test timestamps_to_strings', timestamps_to_strings(ee.List([1996, 2007, 2008]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })));
-        print('Test filter_timestamps', filter_timestamps(get_dataset('mangrove-soc'), ee.List([1996, 2007, 2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })));
-        print('Test null_fixed_histogram', null_fixed_histogram({ min: ee.Number(0), max: ee.Number(2500), step: ee.Number(10), group_lower: ee.List([0, 500, 1000, 1500, 2000]), group_upper: ee.List([500, 1000, 1500, 2000, 2500]), group_colors: ee.List(["#5c4a3d", "#933a06", "#b84e17", "#e68518", "#eeb66b"]).reverse() }));
-        print('Test hist_to_sldStyle', hist_to_sldStyle(null_fixed_histogram({
-            basename: ee.String('toc_co2eha-1'),
-            min: ee.Number(0),
-            max: ee.Number(2500),
-            step: ee.Number(10),
-            group_lower: ee.List([0, 500, 1000, 1500, 2000]),
-            group_upper: ee.List([500, 1000, 1500, 2000, 2500]),
-            group_colors: ee.List(["#5c4a3d", "#933a06", "#b84e17", "#e68518", "#eeb66b"]).reverse(),
-            title: "Total carbon density",
-            units: ee.String('t CO<sub>2</sub>e / ha')
-        })));
-        print('Test calc_area_sum of mangrove habitat',
-            calc_area_sum(
-                ee.ImageCollection(get_dataset('mangrove-extent')),
-                get_country(['TZA']).geometry(),
-                ee.List([1996, 2007, 2008]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) }),
-                ee.Dictionary({
-                    'short_name': 'area_mangrove_m2',
-                    'standard_name': 'total_area_of_mangrove_coverage',
-                    'title': 'Total area of mangrove habitat',
-                    'units': 'm<sup>2</sup>'
+        print('Test timestamps_to_strings', timestamps_to_strings(timestamps));
+        print('Test filter_timestamps', filter_timestamps(get_dataset('mangrove-soc'), timestamps));
+        print('Test null_fixed_histogram', null_fixed_histogram(hist_dict_soc));
+        print('Test hist_to_sldStyle', hist_to_sldStyle(null_fixed_histogram(hist_dict_soc)));
+        print('Test calc_area_sum of mangrove habitat', calc_area_sum(
+            ee.ImageCollection(get_dataset('mangrove-extent')), aoi, timestamps,
+            ee.Dictionary({
+                'short_name': 'area_mangrove_m2',
+                'standard_name': 'total_area_of_mangrove_coverage',
+                'title': 'Total area of mangrove habitat',
+                'units': 'm<sup>2</sup>'
 
-                })
-            ));
+            })
+        ));
         print('Test calc_area_sum of gain in mangrove habitat',
-            calc_area_sum(
-                ee.ImageCollection(get_dataset('mangrove-gain')),
-                get_country(['TZA']).geometry(),
-                ee.List([1996, 2007, 2008]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) }),
+            calc_area_sum(ee.ImageCollection(get_dataset('mangrove-gain')), aoi, timestamps,
                 ee.Dictionary({
                     'short_name': 'area_mangrove_gain_m2',
                     'standard_name': 'total_gain_in_area_of_mangrove_coverage',
@@ -1636,9 +1713,7 @@ if (show_tests === true) {
             ));
         print('Test calc_area_sum of mangrove SOC',
             calc_area_sum(
-                ee.ImageCollection(get_dataset('mangrove-soc')),
-                get_country(['TZA']).geometry(),
-                ee.List([2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) }),
+                ee.ImageCollection(get_dataset('mangrove-soc')), aoi, timestamps,
                 ee.Dictionary({
                     'short_name': 'soc_t',
                     'standard_name': 'total_mangrove_soil_organic_carbon',
@@ -1652,9 +1727,7 @@ if (show_tests === true) {
                     get_dataset('mangrove-agb')).map(function (i) {
                         return i.multiply(10000).set('system:time_start', i.get('system:time_start'));
 
-                    }),
-                get_country(['TZA']).geometry(),
-                ee.List([2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) }),
+                    }), aoi, timestamps_2016,
                 ee.Dictionary({
                     'short_name': 'agb_t_ha-1',
                     'standard_name': 'mangrove_above_ground_biomass_density',
@@ -1663,11 +1736,7 @@ if (show_tests === true) {
                 })
             ));
         print('Test calc_fixed_histogram of Hmax',
-            calc_fixed_histogram(
-                ee.ImageCollection(
-                    get_dataset('mangrove-hmax')),
-                get_country(['TZA']).geometry(),
-                ee.List([2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) }),
+            calc_fixed_histogram(ee.ImageCollection(get_dataset('mangrove-hmax')), aoi, timestamps,
                 // properties definition
                 ee.Dictionary({
                     'short_name': 'hmax_hist_m',
@@ -1687,8 +1756,8 @@ if (show_tests === true) {
             calc_length_intersect(
                 get_dataset('coastline-vector'),
                 get_dataset('mangrove-distance'),
-                get_country(['TZA']).geometry(),
-                ee.List([2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) }),
+                aoi,
+                timestamps_2016,
                 ee.Number(200),
                 ee.Dictionary({
                     'short_name': 'length_mangrove_m',
@@ -1697,40 +1766,13 @@ if (show_tests === true) {
                     'units': 'm'
                 })
             ));
-        print('Test calc_length_coastline', calc_length_coastline(get_country(['TZA']).geometry()));
-        print('Test calc_length_mangroves',
-            calc_length_mangroves(get_country(['TZA']).geometry(),
-                ee.List([1996, 2007, 2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })));
-        print('Test calc_land_cover_sum_area',
-            calc_land_cover_sum_area(
-                get_country(['TZA']).geometry(),
-                ee.List([1996, 2007, 2008]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })
-            ));
-        print('Test calc_mangrove_properties_histograms',
-            calc_mangrove_properties_histograms(
-                get_country(['TZA']).geometry(),
-                ee.List([1996, 2007, 2008]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })
-            ));
-        print('Test calc_mangrove_properties_summary_stats',
-            calc_mangrove_properties_summary_stats(
-                get_country(['TZA']).geometry(),
-                ee.List([1996, 2007, 2008]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })
-            ));
-        print('Test calc_mangrove_carbon_sum_area',
-            calc_mangrove_carbon_sum_area(
-                get_country(['TZA']).geometry(),
-                ee.List([1996, 2007, 2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })
-            ));
-        print('Test calc_mangrove_carbon_histogram',
-            calc_mangrove_carbon_histogram(
-                get_country(['TZA']).geometry(),
-                ee.List([1996, 2007, 2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })
-            ));
-        print('Test calc_mangrove_analysis',
-            calc_mangrove_analysis(
-                ['land-cover', 'mangrove-properties', 'mangrove-carbon', 'length-coast'],
-                get_country(['TZA']).geometry(),
-                ee.List([2016]).map(function (y) { return ee.Date.fromYMD(y, 1, 1) })
-            ));
+        print('Test calc_length_coastline', calc_length_coastline(aoi));
+        print('Test calc_length_mangroves', calc_length_mangroves(aoi, timestamps));
+        print('Test calc_land_cover_sum_area', calc_land_cover_sum_area(aoi, timestamps));
+        print('Test calc_mangrove_properties_histograms', calc_mangrove_properties_histograms(aoi, timestamps));
+        print('Test calc_mangrove_properties_summary_stats', calc_mangrove_properties_summary_stats(aoi, timestamps_2016));
+        print('Test calc_mangrove_carbon_sum_area', calc_mangrove_carbon_sum_area(aoi, timestamps));
+        print('Test calc_mangrove_carbon_histogram', calc_mangrove_carbon_histogram(aoi, timestamps));
+        print('Test calc_mangrove_analysis', calc_mangrove_analysis(analysis_types, aoi, timestamps_2016));
     }// end ee_js === true
 } // end show_tests === true
