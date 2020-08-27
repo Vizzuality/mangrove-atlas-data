@@ -13,6 +13,7 @@
     "@google-cloud/functions-framework": "^1.6.0"
   },
   "dependencies": {
-    "@google/earthengine": "^0.1.227"
+    "@google/earthengine": "^0.1.227",
+    "node-fetch": "^2.6.0"
   }
 }

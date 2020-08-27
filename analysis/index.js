@@ -3,18 +3,50 @@
 // CONFIG
 //////////////////////////////////////////////////////////////////////////////
 
-// Load earthengine package
+// Imports the Google Earth Engine client library
 const ee = require('@google/earthengine');
+
+// Imports the Google Cloud client library
+//const {Storage} = require('@google-cloud/storage');
+
+// Imports node-fetch library 
+const fetch = require('node-fetch');
 
 // Load privateKey
 const privateKey = require('./credentials.json');
 console.log('info: ee package and Private key loaded');
+
+// Creates a GCS client from a Google service account key.
+//const storage = new Storage({keyFilename: "./credentials.json"});
 
 // Load GEE JS functions
 // To load a file with functions, make sure it is included in the Docker definition!
 // Also remember to add to header of file `const ee = require('@google/earthengine');`
 const hfs = require('./helper_functions.js')
 console.log('info: helper functions loaded');
+
+//////////////////////////////////////////////////////////////////////////////
+// FILE I/O
+//////////////////////////////////////////////////////////////////////////////
+
+// Make a URL path from FID and analysis_type
+function mkURL(
+  fid,
+  analysis_type,
+  path = "https://storage.googleapis.com/mangrove_atlas/ee-export-tables/",
+  end = ".geojson"
+ ) {return path + analysis_type + "/" + fid + end} 
+
+// Fetch GeoJSON properties 
+function fetchProperties(url, settings = { method: "Get" }) {
+  return fetch(url, settings)
+    .then(res => {return res.json()})
+    .then(json => {return json.features[0].properties})
+}
+
+// Export analysis results
+
+ 
 
 //////////////////////////////////////////////////////////////////////////////
 // REST WRAPPER
@@ -49,7 +81,7 @@ exports.analyse = (req, res) => {
   function parseRequest(s, name, type, required, def_value) {
     var out = s
     if (s === undefined && required === true) {
-      out = name + ' is required}'
+      out = name + ' is required'
       res.json({ error: out })
     }
     if (s === undefined && required === false) { out = def_value }
@@ -106,6 +138,16 @@ exports.analyse = (req, res) => {
   console.log('info: bestEffort=' + bestEffort);
   console.log(type(bestEffort));
 
+  //////////////////////////////////////////////////////////////////////////////
+  // FETCH PREVIOUS RESULTS
+  //////////////////////////////////////////////////////////////////////////////
+  
+  // TODO: Check if precalculated results are available and fetch, 
+  // if not do analysis and save results.
+
+  const tst_fetch = fetchProperties(mkURL(fid, analysis_types[0]))
+  console.log(tst_fetch)
+  
   //////////////////////////////////////////////////////////////////////////////
   // ANALYSIS
   //////////////////////////////////////////////////////////////////////////////
@@ -173,10 +215,27 @@ exports.analyse = (req, res) => {
       //results.evaluate((info) => {console.log(info);});
 
       //////////////////////////////////////////////////////////////////////////////
-      // ADD TO FEATURE
+      // ADD TO FEATURE COLLECTION
       console.log('info: Adding analysis results to ee.Feature')
-      const out = hfs.update_system_index(f.set(results), 'id')
+      var out = hfs.update_system_index(f.set(results), 'id')
+      out = ee.FeatureCollection([out])
       //out.evaluate((info) => {console.log(info);});
+      
+      // EXPORT FEATURE COLLECTION
+      var task = ee.batch.Export.table.toCloudStorage({
+        'collection': out,
+        'description': 'test',
+        'bucket': 'mangrove_atlas',
+        'fileNamePrefix': 'ee-export-tables-v1/test',
+        'fileFormat': 'GeoJSON'
+      });
+
+      task.start(() => {
+        console.log('Started task #' + task.id);},
+        (error) => {console.log('Error: ' + error);});
+      
+      console.log(ee.data.listOperations(10).map(function(x){return x.metadata}))
+      console.log(ee.data.listOperations(10).map(function(x){return x.error}))  
 
       //////////////////////////////////////////////////////////////////////////////
       // RETURN RESULT AS JSON TO CLIENT

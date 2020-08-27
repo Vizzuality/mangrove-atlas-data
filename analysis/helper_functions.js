@@ -6,7 +6,6 @@
 // Ensure every function is documented!
 // Ensure every function is tested!
 
-
 //////////////////////////////////////////////////////////////////////////////
 // CONFIG
 //////////////////////////////////////////////////////////////////////////////
@@ -804,6 +803,43 @@ function hist_to_sldStyle(hist) {
         .cat('</ColorMap></RasterSymbolizer>');
 }
 exports.hist_to_sldStyle = hist_to_sldStyle;
+
+//////////////////////////////////////////////////////////////////////////////
+// EXPORTS
+//////////////////////////////////////////////////////////////////////////////
+
+function params_export_table_cloud(f, analysis_type, bucket, dir_path, fileFormat) {
+
+    // Set defaults
+    if (bucket === undefined) { bucket = 'mangrove_atlas' }
+    if (dir_path === undefined) { dir_path = 'ee-export-tables-v1' }
+    if (fileFormat === undefined) { fileFormat = 'GeoJSON' }
+
+    // Get FID
+    // FIXME how to use evaluate??
+    fid = f.get('system:index');
+
+    // Create description
+    var description = //fid + '_' + analysis_type;
+        ee.List([fid, analysis_type]).join('_')
+    //.evaluate(function(info){return info});
+
+    // Create fileNamePrefix
+    var fileNamePrefix = //dir_path + '/' + analysis_type + '/' + fid;
+        ee.List([dir_path, analysis_type, fid]).join('/')
+    //.evaluate(function(info){return info});
+
+    // Return export params
+    return {
+        'collection': ee.FeatureCollection(f),
+        'description': description.getInfo(),
+        'bucket': bucket,
+        'fileNamePrefix': fileNamePrefix.getInfo(),
+        'fileFormat': fileFormat
+    }
+
+}
+exports.params_export_table_cloud = params_export_table_cloud;
 
 //////////////////////////////////////////////////////////////////////////////
 // ANALYSIS FUNCTIONS
@@ -1673,6 +1709,7 @@ if (show_tests === true) {
 
         // Print results of functions
         print('Test get_feature_by_fid', get_feature_by_fid(fid));
+        print('Test params_export_table_cloud', params_export_table_cloud(update_system_index(feature, 'id'), 'land-cover'));
         print('Test update_system_index', update_system_index(feature, 'id'));
         print('Test get_features_by_fids:', get_features_by_fids(fids));
         print('Test get_feature_by_country:', get_feature_by_country(iso));
