@@ -14,12 +14,12 @@ const cache = {};
 const getLocation = async (locationId) => {
   if (!locationId) return null;
   console.log('Getting geometry from locations API');
-  const response = await axios.get(`https://mangrove-atlas-api-staging.herokuapp.com/api/locations/${locationId}`, { httpAgent, httpsAgent });
+  const response = await axios.get(`https://mangrove-atlas-api.herokuapp.com/api/locations/${locationId}`, { httpAgent, httpsAgent });
   if (response && response.data) return response.data.data;
   return null;
 };
 
-const makeQuery = (location, year) => {
+const makeQuery = (location, startDate, endDate) => {
   let whereQuery = '';
 
   if (location) {
@@ -36,7 +36,7 @@ const makeQuery = (location, year) => {
   return `SELECT DATE_TRUNC(scr5_obs_date, MONTH) as date, count(scr5_obs_date) as count
   FROM deforestation_alerts.alerts
   WHERE confident = 5
-    AND EXTRACT(YEAR FROM scr5_obs_date) = ${year}
+    AND scr5_obs_date BETWEEN DATE('${startDate}') AND DATE('${endDate}')
     ${whereQuery}
   GROUP BY date
   ORDER BY date ASC`;
@@ -45,17 +45,17 @@ const makeQuery = (location, year) => {
 /**
  * Data aggregated by month
  */
-const alertsJob = async (locationId, year = '2020') => {
+const alertsJob = async (locationId, startDate = '2020-01-01', endDate = '2020-12-31') => {
   // First try to get data from cache in order to reduce costs
-  const cacheKey = `${locationId || ''}_${year}`;
+  const cacheKey = `${locationId || ''}_${startDate}_${endDate}`;
   if (cache[cacheKey]) {
-    console.log(`Rensponse from cache ${cacheKey}`);
+    console.log(`Response from cache ${cacheKey}`);
     return cache[cacheKey];
   }
 
   const location = locationId && await getLocation(locationId);
   const options = {
-    query: makeQuery(location, year),
+    query: makeQuery(location, startDate, endDate),
     // Location must match that of the dataset(s) referenced in the query.
     location: 'US',
   };
@@ -76,7 +76,7 @@ const alertsJob = async (locationId, year = '2020') => {
 exports.fetchAlerts = (req, res) => {
   // Get data and return a JSON
   async function fetch() {
-    const result =  await alertsJob(req.query.location_id, req.query.year);
+    const result =  await alertsJob(req.query.location_id, req.query.start_date, req.query.end_date);
     res.json(result);
   }
 
