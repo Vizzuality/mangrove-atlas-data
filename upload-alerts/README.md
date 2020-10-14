@@ -56,12 +56,14 @@ It will upload to BigQuery table the file created by the command above.
 ```
 # TEMPORAL
 gsutil cp ./data/edited.json gs://mangrove_atlas/deforestation-alerts/africa/
-bq load \                                   
+
+bq load \
     --autodetect \
     --replace \
     --source_format=NEWLINE_DELIMITED_JSON \
     deforestation_alerts.alerts \
     gs://mangrove_atlas/deforestation-alerts/africa/edited.json
+
 # TO-DO
 sh ./start.sh upload 
 ```

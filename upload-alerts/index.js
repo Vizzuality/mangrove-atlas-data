@@ -10,6 +10,9 @@ const { streamArray } = require('stream-json/streamers/StreamArray');
 
 const filePath = path.join(process.cwd(), './data/results.json.gz');
 
+/**
+ * Note: ~~ operator parse float to int
+ */
 const pipeline = chain([
   fs.createReadStream(filePath),
   zlib.createGunzip(),
@@ -17,26 +20,27 @@ const pipeline = chain([
   pick({ filter: 'features' }),
   streamArray(),
   ({ value }) => {
+    // { "type": "Feature", "properties": { "OBJECTID": 9, "fid_1": 1.0, "uid": 1649385.0, "prop_chng": 0.444444444444, "score": 5.0, "firstobsda": 6.0, "firstobsmo": 1.0, "firstobsye": 2020.0, "lastobsday": 22.0, "lastobsmon": 5.0, "lastobsyea": 2020.0, "scr5obsday": 27.0, "scr5obsmon": 2.0, "scr5obsyea": 2020.0, "layer": "tile_e001n06", "scr5date": "2020-02-27", "FalsePos": 0 }, "geometry": { "type": "Point", "coordinates": [ -0.322760107302088, 5.521108122036082 ] } }
     const { geometry, properties } = value;
     const {
-      firstobsyear,
-      firstobsmonth,
-      firstobsday,
-      lastobsyear,
-      lastobsmonth,
+      firstobsye: firstobsyear,
+      firstobsmo: firstobsmonth,
+      firstobsda: firstobsday,
+      lastobsyea: lastobsyear,
+      lastobsmon: lastobsmonth,
       lastobsday,
-      scr5obsyear,
-      scr5obsmonth,
+      scr5obsyea: scr5obsyear,
+      scr5obsmon: scr5obsmonth,
       scr5obsday,
       score,
-      uid,
+      OBJECTID: uid,
     } = properties;
-    const first_obs_date = (firstobsyear === 0 && firstobsmonth === 0 && firstobsday === 0) ? null : new Date(firstobsyear, firstobsmonth - 1, firstobsday);
-    const last_obs_date = (lastobsyear === 0 && lastobsmonth === 0 && lastobsday === 0) ? null :  new Date(lastobsyear, lastobsmonth - 1, lastobsday);
-    const scr5_obs_date = (scr5obsyear === 0 && scr5obsmonth === 0 && scr5obsday === 0) ? null : new Date(scr5obsyear, scr5obsmonth - 1, scr5obsday);
+    const first_obs_date = (~~firstobsyear === 0 && ~~firstobsmonth === 0 && ~~firstobsday === 0) ? null : new Date(~~firstobsyear, ~~firstobsmonth - 1, ~~firstobsday);
+    const last_obs_date = (~~lastobsyear === 0 && ~~lastobsmonth === 0 && ~~lastobsday === 0) ? null :  new Date(~~lastobsyear, ~~lastobsmonth - 1, ~~lastobsday);
+    const scr5_obs_date = (~~scr5obsyear === 0 && ~~scr5obsmonth === 0 && ~~scr5obsday === 0) ? null : new Date(~~scr5obsyear, ~~scr5obsmonth - 1, ~~scr5obsday);
     const result = {
       id: uid,
-      confident: score,
+      confident: ~~score,
       first_obs_date: first_obs_date && format(first_obs_date, 'yyyy-MM-dd'),
       last_obs_date: last_obs_date && format(last_obs_date, 'yyyy-MM-dd'),
       scr5_obs_date: scr5_obs_date && format(scr5_obs_date, 'yyyy-MM-dd'),
