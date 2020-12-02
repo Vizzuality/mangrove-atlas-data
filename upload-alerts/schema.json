@@ -8,6 +8,12 @@
   {
     "description": "",
     "mode": "NULLABLE",
+    "name": "confident",
+    "type": "INTEGER"
+  },
+  {
+    "description": "",
+    "mode": "NULLABLE",
     "name": "latitude",
     "type": "FLOAT"
   },
@@ -36,9 +42,9 @@
     "type": "DATE"
   },
   {
-    "description": "",
+    "description": "%E4Y-%m-%d",
     "mode": "NULLABLE",
-    "name": "confident",
-    "type": "INTEGER"
+    "name": "created_at",
+    "type": "DATE"
   }
 ]

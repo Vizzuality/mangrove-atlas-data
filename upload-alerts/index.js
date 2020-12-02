@@ -45,6 +45,7 @@ const pipeline = chain([
       scr5_obs_date: scr5_obs_date && format(scr5_obs_date, 'yyyy-MM-dd'),
       latitude: geometry.coordinates[1],
       longitude: geometry.coordinates[0],
+      created_at: format(new Date(), 'yyyy-MM-dd'),
     };
     return result;
   },
