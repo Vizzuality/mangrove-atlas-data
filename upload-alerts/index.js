@@ -20,20 +20,19 @@ const pipeline = chain([
   pick({ filter: 'features' }),
   streamArray(),
   ({ value }) => {
-    // { "type": "Feature", "properties": { "OBJECTID": 9, "fid_1": 1.0, "uid": 1649385.0, "prop_chng": 0.444444444444, "score": 5.0, "firstobsda": 6.0, "firstobsmo": 1.0, "firstobsye": 2020.0, "lastobsday": 22.0, "lastobsmon": 5.0, "lastobsyea": 2020.0, "scr5obsday": 27.0, "scr5obsmon": 2.0, "scr5obsyea": 2020.0, "layer": "tile_e001n06", "scr5date": "2020-02-27", "FalsePos": 0 }, "geometry": { "type": "Point", "coordinates": [ -0.322760107302088, 5.521108122036082 ] } }
     const { geometry, properties } = value;
     const {
-      firstobsye: firstobsyear,
-      firstobsmo: firstobsmonth,
-      firstobsda: firstobsday,
-      lastobsyea: lastobsyear,
-      lastobsmon: lastobsmonth,
+      firstobsyear,
+      firstobsmonth,
+      firstobsday,
+      lastobsyear,
+      lastobsmonth,
       lastobsday,
-      scr5obsyea: scr5obsyear,
-      scr5obsmon: scr5obsmonth,
+      scr5obsyear,
+      scr5obsmonth,
       scr5obsday,
       score,
-      OBJECTID: uid,
+      uid,
     } = properties;
     const first_obs_date = (~~firstobsyear === 0 && ~~firstobsmonth === 0 && ~~firstobsday === 0) ? null : new Date(~~firstobsyear, ~~firstobsmonth - 1, ~~firstobsday);
     const last_obs_date = (~~lastobsyear === 0 && ~~lastobsmonth === 0 && ~~lastobsday === 0) ? null :  new Date(~~lastobsyear, ~~lastobsmonth - 1, ~~lastobsday);
